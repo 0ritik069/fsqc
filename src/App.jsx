@@ -3,7 +3,7 @@ import Home from './pages/Home';
 import Scanner from './pages/Scanner';
 import { Routes, Route } from 'react-router-dom';
 import TableView from './pages/TableView';
- console.log("23-07-25,5:48")
+ console.log("19-08-25,12:48")
 
 const App = () => {
   return (

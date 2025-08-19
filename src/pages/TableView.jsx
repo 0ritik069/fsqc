@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from "html5-qrcode";
 
@@ -20,6 +20,63 @@ const TableView = () => {
   const navigate = useNavigate();
   const data = location.state?.data || [];
 
+  // Sanitize rows: replace blank/unnamed first key with a stable key 'col004'.
+  // Also normalize any key whose numeric part equals '004' to 'col004'.
+  const sanitizeRow = (row) => {
+    if (!row || typeof row !== 'object') return row;
+    const next = { ...row };
+    Object.keys(row).forEach((key) => {
+      const trimmed = (key ?? '').toString();
+      const digits = trimmed.replace(/\D+/g, '');
+      const isBlank = trimmed.trim() === '';
+      const is004 = digits === '004';
+      if (isBlank || is004) {
+        // Move value to 'col004'
+        if (next.col004 === undefined) next.col004 = row[key];
+        delete next[key];
+      }
+    });
+    return next;
+  };
+
+  const sanitizedData = useMemo(() => data.map(sanitizeRow), [data]);
+
+  // Column order: put 'col004' first if it exists; then the rest in natural order
+  const allKeys = useMemo(
+    () => Array.from(new Set(sanitizedData.flatMap((obj) => Object.keys(obj)))),
+    [sanitizedData]
+  );
+  const orderedKeys = useMemo(() => {
+    const others = allKeys.filter((k) => k !== 'col004');
+    return allKeys.includes('col004') ? ['col004', ...others] : others;
+  }, [allKeys]);
+
+  const [sortKey, setSortKey] = useState(orderedKeys[0] || 'col004');
+  const [sortDir, setSortDir] = useState('asc');
+
+  const sortedData = useMemo(() => {
+    const arr = [...sanitizedData];
+    if (!sortKey) return arr;
+    arr.sort((a, b) => {
+      const va = a?.[sortKey];
+      const vb = b?.[sortKey];
+      const na = parseFloat(va);
+      const nb = parseFloat(vb);
+      const numeric = sortKey === 'col004' || (!isNaN(na) && !isNaN(nb));
+      let cmp = 0;
+      if (numeric) {
+        cmp = (isNaN(na) ? -Infinity : na) - (isNaN(nb) ? -Infinity : nb);
+      } else {
+        cmp = String(va ?? '').localeCompare(String(vb ?? ''), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [sanitizedData, sortKey, sortDir]);
+
   if (!Array.isArray(data) || data.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-black to-gray-800 text-white">
@@ -30,7 +87,20 @@ const TableView = () => {
   }
 
   
-  const columns = Array.from(new Set(data.flatMap(obj => Object.keys(obj))));
+  const columns = orderedKeys;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-black to-gray-800 text-white px-4">
@@ -42,15 +112,24 @@ const TableView = () => {
               {columns.map((col) => (
                 <th
                   key={col}
-                  className="px-4 py-3 border-b border-gray-400 font-extrabold text-lg text-black bg-gray-200 uppercase tracking-wider text-center"
+                  className="px-4 py-3 border-b border-gray-400 font-extrabold text-lg text-black bg-gray-200 uppercase tracking-wider text-center cursor-pointer select-none"
+                  onClick={() => {
+                    if (sortKey === col) {
+                      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+                    } else {
+                      setSortKey(col);
+                      setSortDir('asc');
+                    }
+                  }}
                 >
-                  {col}
+                  {col === 'col004' ? '004' : col}
+                  {sortKey === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {data.map((row, idx) => (
+            {sortedData.map((row, idx) => (
               <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-100' : 'bg-gray-300'}>
                 {columns.map((col) => {
                   const value = row[col];
@@ -64,7 +143,7 @@ const TableView = () => {
                       key={col}
                       className={`px-4 py-2 border-b border-gray-300 text-center font-mono ${getCellStyle(col, parsed)}`}
                     >
-                      {value !== undefined ? value : ''}
+                      {value !== undefined && value !== null && value !== '' ? value : '-'}
                     </td>
                   );
                 })}
@@ -79,3 +158,12 @@ const TableView = () => {
 };
 
 export default TableView; 
+
+
+
+ // hum is project me graph dikhane h jesa mene tumhe ss diya h wese is project me jab hum qr scan krte h tab  tab  do array mil rhe h
+    // ek h limits dusra h allrecords  to pehle array jo values mil rhi h usme ye batya gya h ki kiska value dikhai h kiska nhi jese isme 
+    // lse value lie value mil rhi h wo h hmari lower and upper value critica jo h wo h dicied value ki dikhnai h ya nhi table me
+    
+
+    // 

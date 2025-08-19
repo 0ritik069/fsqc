@@ -59,6 +59,7 @@ const Scanner = () => {
     };
   }, []);
 
+
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center py-6 px-4">
       <h2 className="text-2xl font-bold mb-4">Scan QR Code</h2>
