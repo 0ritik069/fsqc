@@ -51,31 +51,8 @@ const TableView = () => {
     return allKeys.includes('col004') ? ['col004', ...others] : others;
   }, [allKeys]);
 
-  const [sortKey, setSortKey] = useState(orderedKeys[0] || 'col004');
-  const [sortDir, setSortDir] = useState('asc');
-
-  const sortedData = useMemo(() => {
-    const arr = [...sanitizedData];
-    if (!sortKey) return arr;
-    arr.sort((a, b) => {
-      const va = a?.[sortKey];
-      const vb = b?.[sortKey];
-      const na = parseFloat(va);
-      const nb = parseFloat(vb);
-      const numeric = sortKey === 'col004' || (!isNaN(na) && !isNaN(nb));
-      let cmp = 0;
-      if (numeric) {
-        cmp = (isNaN(na) ? -Infinity : na) - (isNaN(nb) ? -Infinity : nb);
-      } else {
-        cmp = String(va ?? '').localeCompare(String(vb ?? ''), undefined, {
-          numeric: true,
-          sensitivity: 'base',
-        });
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-    return arr;
-  }, [sanitizedData, sortKey, sortDir]);
+  // Removed sorting functionality - data will be displayed in original order
+  const sortedData = useMemo(() => [...sanitizedData], [sanitizedData]);
 
   if (!Array.isArray(data) || data.length === 0) {
     return (
@@ -112,18 +89,9 @@ const TableView = () => {
               {columns.map((col) => (
                 <th
                   key={col}
-                  className="px-4 py-3 border-b border-gray-400 font-extrabold text-lg text-black bg-gray-200 uppercase tracking-wider text-center cursor-pointer select-none"
-                  onClick={() => {
-                    if (sortKey === col) {
-                      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-                    } else {
-                      setSortKey(col);
-                      setSortDir('asc');
-                    }
-                  }}
+                  className="px-4 py-3 border-b border-gray-400 font-extrabold text-lg text-black bg-gray-200 uppercase tracking-wider text-center"
                 >
                   {col === 'col004' ? '004' : col}
-                  {sortKey === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                 </th>
               ))}
             </tr>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import logo from '../assets/qr-app.png';
 import axios from 'axios';
+import ReactApexChart from 'react-apexcharts';
 
 const Home = () => {
   const [showScanner, setShowScanner] = useState(false);
@@ -12,9 +13,7 @@ const Home = () => {
   const [scannerRunning, setScannerRunning] = useState(false);
   const hasScannedRef = useRef(false); 
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage] = useState(10); 
-  const [tableSortKey, setTableSortKey] = useState(null);
-  const [tableSortDir, setTableSortDir] = useState('asc');
+  const [rowsPerPage] = useState(10);
 
   useEffect(() => {
     if (!showScanner) return;
@@ -137,41 +136,86 @@ const Home = () => {
     return d.toLocaleString();
   };
 
-  // New function to render gauge charts
+  // New function to render gauge charts using ApexCharts
   const renderGaugeChart = (label, value, min, max, isInRange) => {
     const safeMin = Number(min);
     const safeMax = Number(max);
     const safeValue = Number(value);
     const low = Math.min(safeMin, safeMax);
     const high = Math.max(safeMin, safeMax);
-    const percentage = isFinite(safeValue) && isFinite(low) && isFinite(high) && high !== low
-      ? ((safeValue - low) / (high - low)) * 100
-      : 0;
+    
+    // Calculate percentage for the gauge
+    let percentage = 0;
+    if (isFinite(safeValue) && isFinite(low) && isFinite(high) && high !== low) {
+      percentage = ((safeValue - low) / (high - low)) * 100;
+    }
+    
+    // Ensure percentage is between 0 and 100, but show at least 5% if value exists
     const clampedPercentage = Math.max(0, Math.min(100, percentage));
-    const clampedAngle = (clampedPercentage / 100) * 180;
-    const arcColor = isInRange ? '#22c55e' : '#ef4444';
-    const minVisible = !isInRange && isFinite(safeValue) ? 6 : 0;
+    const displayPercentage = safeValue > 0 ? Math.max(clampedPercentage, 5) : 0;
+    
+    const options = {
+      chart: {
+        type: 'radialBar',
+        height: 140,
+        offsetY: 0,
+        sparkline: {
+          enabled: true
+        }
+      },
+      plotOptions: {
+        radialBar: {
+          startAngle: -135,
+          endAngle: 135,
+          hollow: {
+            margin: 15,
+            size: '65%',
+          },
+          track: {
+            background: '#374151',
+            strokeWidth: '97%',
+            margin: 5,
+          },
+          dataLabels: {
+            name: {
+              show: false,
+            },
+            value: {
+              offsetY: 5,
+              color: '#FFFFFF',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              show: true,
+              formatter: function (val) {
+                // Show actual value, not percentage
+                return isFinite(safeValue) && safeValue !== 0 ? safeValue.toFixed(2) : '0.00';
+              }
+            }
+          }
+        }
+      },
+      fill: {
+        colors: [isInRange ? '#22c55e' : '#ef4444']
+      },
+      stroke: {
+        lineCap: 'round',
+        width: 3
+      },
+      series: [displayPercentage]
+    };
 
     return (
       <div key={label} className="bg-gray-800 rounded-lg p-4 text-center">
         <h3 className="text-lg font-bold text-white mb-2">{label}</h3>
-        <div className="relative w-32 h-16 mx-auto overflow-hidden">
-          <div
-            className="absolute left-1/2 transform -translate-x-1/2 -top-16 w-32 h-32 rounded-full"
-            style={{
-              background: `conic-gradient(${arcColor} ${Math.max(clampedAngle, minVisible)}deg, #9ca3af ${Math.max(clampedAngle, minVisible)}deg 180deg, transparent 0 360deg)`
-            }}
-          />
-          <div className="absolute left-1/2 transform -translate-x-1/2 -top-12 w-24 h-24 rounded-full bg-gray-800" />
-          <div className="absolute inset-0 flex items-end justify-center pb-1">
-            <span className="text-white font-bold text-sm">
-              {isFinite(safeValue) ? safeValue.toFixed(2) : '0.00'}
-            </span>
-          </div>
-        </div>
-        <div className={`text-xs mt-2 ${isInRange ? 'text-green-400' : 'text-red-400'}`}>
-          {isFinite(safeValue) ? safeValue.toFixed(2) : '0.00'}
-        </div>
+        
+        <ReactApexChart 
+          options={options} 
+          series={options.series} 
+          type="radialBar" 
+          height={140} 
+        />
+        
+
       </div>
     );
   };
@@ -199,14 +243,28 @@ const Home = () => {
 
   const getValueByNumericKey = (row, numericKey) => {
     if (!row) return undefined;
+    
+    // First try exact match
+    if (row[numericKey] !== undefined) {
+      return row[numericKey];
+    }
+    
+    // Try numeric key matching
     const wanted = (numericKey || '').toString().replace(/\D+/g, '');
     const keys = Object.keys(row);
+    
     for (const key of keys) {
       const digits = key.toString().replace(/\D+/g, '');
       if (digits === wanted) {
         return row[key];
       }
     }
+    
+    // Try partial matching for special cases
+    if (numericKey === '004' && row[''] !== undefined) {
+      return row['']; // Handle blank key case
+    }
+    
     return undefined;
   };
 
@@ -220,6 +278,9 @@ const Home = () => {
     if (!all.length) return null;
 
     const latest = [...all].sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0))[0] || all[0];
+    
+    // Get product ID from the first record
+    const productId = latest?.productoid || latest?.productid || 'N/A';
 
     const dynamicDefs = productData.limits
       .filter(l => l && l.caracteristicaid && String(l.critica).trim() === '1')
@@ -231,6 +292,14 @@ const Home = () => {
 
     return (
       <div className="w-full max-w-6xl mx-auto mt-8 bg-gray-900 rounded-lg shadow-lg p-6">
+        {/* Product ID Display */}
+        <div className="text-center mb-6">
+          <h2 className="text-3xl font-bold text-yellow-400 mb-2">Product ID</h2>
+          <div className="text-2xl font-bold text-white bg-gray-800 px-6 py-3 rounded-lg inline-block">
+            {productId}
+          </div>
+        </div>
+        
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {dynamicDefs.map((def) => {
             const keys = Object.keys(latest || {});
@@ -247,6 +316,17 @@ const Home = () => {
             const low = Math.min(Number(def.min), Number(def.max));
             const high = Math.max(Number(def.min), Number(def.max));
             const inRange = isFinite(v) && isFinite(low) && isFinite(high) && v >= low && v <= high;
+            
+            // Debug logging
+            console.log(`Chart ${def.label}:`, {
+              value: value,
+              numericValue: v,
+              min: def.min,
+              max: def.max,
+              inRange: inRange,
+              foundKey: foundKey
+            });
+            
             return renderGaugeChart(def.label, value, def.min, def.max, inRange);
           })}
         </div>
@@ -292,6 +372,7 @@ const Home = () => {
       'estacionid',
       'maquinaid',
       'productid',
+      'productoid',
       'critica',
       'lie',
       'lse',
@@ -311,25 +392,7 @@ const Home = () => {
     remaining.sort();
     const finalColumns = ['SR', 'fecha', '004', ...remaining];
 
-    // Optional sort
-    if (tableSortKey) {
-      dataToShow = [...dataToShow].sort((a, b) => {
-        const va = a?.[tableSortKey];
-        const vb = b?.[tableSortKey];
-        const na = parseFloat(va);
-        const nb = parseFloat(vb);
-        const numeric = tableSortKey === 'col004' || (!isNaN(na) && !isNaN(nb));
-        let cmp = 0;
-        if (numeric) {
-          cmp = (isNaN(na) ? -Infinity : na) - (isNaN(nb) ? -Infinity : nb);
-        } else if (tableSortKey === 'fecha') {
-          cmp = new Date(va || 0) - new Date(vb || 0);
-        } else {
-          cmp = String(va ?? '').localeCompare(String(vb ?? ''), undefined, { numeric: true, sensitivity: 'base' });
-        }
-        return tableSortDir === 'asc' ? cmp : -cmp;
-      });
-    }
+    // No sorting - data displayed in original order
 
     const paginatedData = dataToShow.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
     const totalPages = Math.ceil(dataToShow.length / rowsPerPage);
@@ -346,23 +409,9 @@ const Home = () => {
                 {finalColumns.map((col) => (
                   <th
                     key={col}
-                    className="px-4 py-3 border-b border-gray-400 font-bold text-sm text-black bg-gray-200 uppercase text-center cursor-pointer select-none"
-                    onClick={() => {
-                      const key = col === '004' ? 'col004' : col;
-                      if (tableSortKey === key) {
-                        setTableSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-                      } else {
-                        setTableSortKey(key);
-                        setTableSortDir('asc');
-                      }
-                    }}
+                    className="px-4 py-3 border-b border-gray-400 font-bold text-sm text-black bg-gray-200 uppercase text-center"
                   >
                     {col}
-                    {(() => {
-                      const key = col === '004' ? 'col004' : col;
-                      if (tableSortKey === key) return tableSortDir === 'asc' ? ' ▲' : ' ▼';
-                      return '';
-                    })()}
                   </th>
                 ))}
               </tr>
